@@ -31,6 +31,10 @@ public class SimpleConfigurationProviderBindTest extends SimpleConfigurationProv
 
   public interface ConfigPojo {
     Integer someSetting();
+
+		default String settingWithDefaultValue(){
+			return "default";
+		}
   }
 
   public interface MultiPropertyConfigPojo extends ConfigPojo {
@@ -77,6 +81,22 @@ public class SimpleConfigurationProviderBindTest extends SimpleConfigurationProv
     ConfigPojo config = simpleConfigurationProvider.bind("", ConfigPojo.class);
     assertThat(config.someSetting()).isEqualTo(42);
   }
+
+	@Test
+	public void bindsDefaultMethodSetting() throws Exception {
+		when(configurationSource.getConfiguration(anyEnvironment())).thenReturn(propertiesWith("someSetting", "42"));
+
+		ConfigPojo config = simpleConfigurationProvider.bind("", ConfigPojo.class);
+		assertThat(config.settingWithDefaultValue()).isEqualTo("default");
+	}
+
+	@Test
+	public void bindsOverriddenDefaultMethodSetting() throws Exception {
+		when(configurationSource.getConfiguration(anyEnvironment())).thenReturn(propertiesWith("someSetting", "42", "settingWithDefaultValue", "overridden"));
+
+		ConfigPojo config = simpleConfigurationProvider.bind("", ConfigPojo.class);
+		assertThat(config.settingWithDefaultValue()).isEqualTo("overridden");
+	}
 
   @Test
   public void bindsInitialValuesInSubPath() throws Exception {

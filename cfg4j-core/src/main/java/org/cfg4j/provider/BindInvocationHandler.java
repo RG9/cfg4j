@@ -17,6 +17,8 @@ package org.cfg4j.provider;
 
 import static java.util.Objects.requireNonNull;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -57,14 +59,38 @@ class BindInvocationHandler implements InvocationHandler {
       return method.invoke(this, args);
     }
 
-    final Type returnType = method.getGenericReturnType();
-    return simpleConfigurationProvider.getProperty(prefix + (prefix.isEmpty() ? "" : ".") + method.getName(), new GenericTypeInterface() {
-      @Override
-      public Type getType() {
-        return returnType;
-      }
-    });
-  }
+		try {
+			final Type returnType = method.getGenericReturnType();
+			return simpleConfigurationProvider.getProperty(prefix + (prefix.isEmpty() ? "" : ".") + method.getName(), new GenericTypeInterface() {
+				@Override
+				public Type getType() {
+					return returnType;
+				}
+			});
+		} catch (Throwable t) {
+			if (method.isDefault()) {
+				return invokeInterfaceDefaultMethod(proxy, method, args);
+			}
+			throw t;
+		}
+	}
+
+	private Object invokeInterfaceDefaultMethod(Object proxy, Method method, Object[] args) {
+		try {
+			final Constructor<MethodHandles.Lookup> constructor = MethodHandles.Lookup.class.getDeclaredConstructor(Class.class, int.class);
+			if (!constructor.isAccessible()) {
+				constructor.setAccessible(true);
+			}
+
+			final Class<?> declaringClass = method.getDeclaringClass();
+			return constructor.newInstance(declaringClass, MethodHandles.Lookup.PRIVATE)
+				.unreflectSpecial(method, declaringClass)
+				.bindTo(proxy)
+				.invokeWithArguments(args);
+		} catch (Throwable throwable) {
+			throw new RuntimeException(throwable);
+		}
+	}
 
   /**
    * Check if method is defined by Object class (e.g. {@link Object#hashCode()}.
